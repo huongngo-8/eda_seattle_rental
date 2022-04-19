@@ -1,0 +1,534 @@
+---
+title: "How has rental activity in Seattle changed post-COVID?"
+author: "Huong Ngo"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include = FALSE}
+library(tidyverse)
+library(ggplot2)
+library(kableExtra)
+library(ggpubr)
+knitr::opts_chunk$set(echo = FALSE, fig.align = "center")
+rental_reg <- read_csv("~/Desktop/PERSONAL PROJECTS/eda_seattle_rentals/Data/rental_registration_clean.csv")
+```
+
+```{r g-theme, include = FALSE}
+g_theme <- theme_bw(base_size = 16) +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+        plot.subtitle = element_text(hjust = 0.5),
+        plot.caption = element_text(hjust = 0.5))
+```
+
+```{r data-transform, include = FALSE}
+rental_reg$RegisteredYearFct <- factor(rental_reg$RegisteredYear)
+rental_reg$RegisteredMonthFct <- factor(rental_reg$RegisteredMonth)
+rental_reg$ExpiresYearFct <- factor(rental_reg$ExpiresYear)
+rental_reg$ExpiresMonthFct <- factor(rental_reg$ExpiresMonth)
+
+rental_reg$NeighborhoodDistrict[rental_reg$NeighborhoodDistrict == "Delridge Neighborhoods"] <- "Delridge"
+rental_reg$NeighborhoodDistrict[rental_reg$NeighborhoodDistrict == "Magnolia/Queen Anne"] <- "Magnolia"
+```
+
+## Introduction
+
+In this report, we’ll be exploring rental activity in Seattle and comparing it across different years and neighborhoods of Seattle using Seattle’s Rental Property Registration dataset. The dataset contains information about the location of the rental property, the number of rental units of each property, and the registration and expiration dates of the rental registration. 
+
+## Rental Registration in Seattle Pre-COVID and Post-COVID
+
+Since **2018** (pre-COVID) (with the exception of 2019), the number of new rental registrations has increased greatly. Interestingly enough, **2020 and 2021** were the years where the pandemic impacted people the most, but the number of registrations grew. From **2018 to 2020**, an **increase of 5118 new rental registrations** made can be observed whereas from **2020 to 2021**, an **increase of 6436 new rental registrations** made can be observed. Before we investigate this further, let’s take a look at the number of existing (new and non-expired) registrations to make some points clear and another chart to understand the overall monthly trend between pre-COVID and post-COVID years.
+
+```{r}
+ggplot(rental_reg %>% 
+         filter(RegisteredYear %in% c(2018, 2019, 2020, 2021, 2022)), 
+       aes(x = RegisteredYear)) +
+  geom_bar() +
+  labs(title = "New Rental Registrations Each Year",
+       x = "Year",
+       y = "Number of rental registrations",
+       caption = "Figure 1") +
+  g_theme
+```
+
+```{r}
+total_rental <- rental_reg %>%
+  filter(RegisteredYearFct %in% c(2018, 2019, 2020, 2021, 2022)) %>%
+  count(RegisteredYearFct)
+total_rental <- rename(total_rental, Registrations = n, "Registered Year" = RegisteredYearFct)
+kable_styling(kable(total_rental))
+```
+
+Before 2019, rental registrations expired 5 years after the registration date. However, beginning of 2019, the city of Seattle changed the duration to 2 years. Another thing to take note of is that even though there are new registrations that only last for 2 years, some registrations made after 2019 last for 3 or 4 years. Thus, in order to calculate the total number of existing registrations in each year, we had to take into account the non-expired registrations that were made years before the year we are examining plus some other registrations that didn't follow the 2-year duration. Here's the general breakdown: 
+
+```{r}
+year <- c(2018, 2019, 2020, 2021, 2022)
+year <- factor(year)
+
+reg_year_2018 <- "2015, 2016, 2017, 2018"
+reg_year_2019 <- "2015, 2016, 2017, 2018, 2019"
+reg_year_2020 <- "2016, 2017, 2018, 2019, 2020"
+reg_year_2021 <- "2017, 2018, 2020, 2021"
+reg_year_2022 <- "2018, 2019, 2021, 2022"
+
+existing_reg_tb <- data.frame("Year" = year, 
+                              "Registration Years" = c(reg_year_2018, 
+                                                       reg_year_2019,
+                                                       reg_year_2020,
+                                                       reg_year_2021,
+                                                       reg_year_2022),
+                              check.names = FALSE)
+kable_styling(kable(existing_reg_tb))
+```
+
+Here, we can see that out of all years (except for 2022 because we're still in 2022), 2021 has accumulated the most number of existing rental registrations. This is particularly due to the great increase in new registrations in 2021. 
+
+```{r}
+existing_reg_2018 <- rental_reg %>%
+  filter(RegisteredYear %in% c(2015, 2016, 2017, 2018))
+
+existing_reg_2019 <- rental_reg %>%
+  filter(RegisteredYear %in% c(2015, 2016, 2017, 2018, 2019))
+
+existing_reg_2020 <- rental_reg %>%
+  filter(RegisteredYear %in% c(2016, 2017, 2018, 2019, 2020))
+
+existing_reg_2021 <- rental_reg %>%
+  filter(RegisteredYear %in% c(2017, 2018, 2020, 2021))
+
+existing_reg_2022 <- rental_reg %>%
+  filter(RegisteredYear %in% c(2018, 2019, 2021, 2022))
+
+no_of_reg <- c(nrow(existing_reg_2018), nrow(existing_reg_2019), nrow(existing_reg_2020), nrow(existing_reg_2021) + 102, nrow(existing_reg_2022) + 429)
+
+year <- c(2018, 2019, 2020, 2021, 2022)
+
+year <- factor(year)
+
+existing_reg <- data.frame(year = year,
+                           no_of_reg = no_of_reg)
+
+existing_reg_tb <- data.frame(Year = year,
+                              "Number of Registrations" = no_of_reg,
+                              check.names = FALSE)
+```
+
+```{r}
+ggplot(existing_reg, aes(x = year,
+                         y = no_of_reg)) +
+  geom_col() +
+  labs(title = "Existing Registrations in Each Year",
+       x = "Year",
+       y = "Number of registrations",
+       caption = "Figure 2") +
+  g_theme
+
+kable_styling(kable(existing_reg_tb))
+```
+
+In 2021, the US opened its borders again to international travel for any traveler with a valid entry. That meant that international students of colleges in Seattle would be re-populating the Seattle area after a year of remote learning. This also meant that landlords took up the opportunity to register their properties for these new individuals to rent. Looking at Figure 2, the number of new rental registrations gradually increased since the **beginning of 2021**, and there is a much sharper increase starting **April 2021 until August 2021** which marks the time before students return to campus. This aligns with an announcement made by President Biden at the beginning of 2021 that would allow students on an F-1 visa who begin or continue their studies on or after August 1st, 2021 to enter the US. 
+
+Another behavior we can observe is that the number of new registrations in **pandemic years (2020, 2021, 2022)** reach numbers way higher than **pre-pandemic years (2018, 2019)**. There is no supporting explicit evidence for this behavior but there are a few things that can be a good starting point to understand why. Let's examine 2020 specifically because the pandemic was in full force during that year but there was still behavior of new registrations increasing. Firstly, this behavior could have been a result of more individuals needing extra income on top of their jobs through registering their properties for renting. Another suggestion would be that many didn't know if the pandemic was going to stay around for the entire year or a long time. These reasons would explain why there is an increase **between March and June 2020** before the numbers plateaued **between June and September 2020**. **March 2020** was when COVID started to impact Seattle hard, and around June and September was when people started to realize that COVID would continue longer than anticipated. Lastly, job growth started picking up again by the **fall of 2020** where there was COVID recovery and there was continued job growth throughout 2021. 
+
+```{r}
+monthly_reg <- rental_reg %>%
+  filter(RegisteredYearFct %in% c(2018, 2019, 2020, 2021, 2022)) %>%
+  group_by(RegisteredYearFct, RegisteredMonthFct) %>%
+  count(RegisteredMonthFct)
+```
+
+```{r}
+ggplot(monthly_reg, aes(x = RegisteredMonthFct,
+                        y = n,
+                        group = RegisteredYearFct,
+                        color = RegisteredYearFct)) +
+  geom_line() +
+  labs(title = "New Registrations in Each Month",
+       x = "Month",
+       y = "Number of Registrations",
+       subtitle = "Grouped by year",
+       color = "Year",
+       caption = "Figure 3") +
+  g_theme
+```
+
+### Rental Registration in Seattle Neighborhoods Pre-COVID and Post-COVID
+
+To investigate Seattle's increase in new rental registrations between pre-COVID and post-COVID, we can examine the rental registration activity in neighborhoods across Seattle. Below are graphs of new rental registrations across 13 neighborhoods in Seattle. Overall, we can see that there has been an increase in new registrations across many neighborhoods of Seattle, especially in urban neighborhoods that are home to office workers or students. Instead of looking at all the neighborhoods, let's examine some notable neighborhoods. 
+
+Magnolia/Queen Anne, an affluent neighborhood that is home to many family residential properties, saw an increase in new registrations from **2018 to 2020** but a decrease from **2020 to 2021**. Northeast, which encompasses the University of Washington campus and rental properties for students and workers for the school, and Lake Union, which is a hub for Amazon and the biotech field, experienced a great increase from 2018 to 2021. Most notably, Northwest saw not only a great increase **between 2018 and 2020**, but also **between 2020 and 2021**. Along with these observations, we can look at the trend of existing registrations across the neighborhoods and see that Northwest's rental activity is the most active which could also suggest that it is a popular area to reside.
+
+```{r}
+neighborhood_reg <- rental_reg %>%
+  filter(RegisteredYearFct %in% c(2018, 2019, 2020, 2021, 2022)) %>%
+  group_by(NeighborhoodDistrict, RegisteredYearFct) %>%
+  count(RegisteredYearFct)
+```
+
+```{r, fig.width = 12, fig.height = 10}
+ggplot(neighborhood_reg %>% filter(!is.na(NeighborhoodDistrict)), aes(x = RegisteredYearFct,
+                             y = n)) +
+  geom_col() +
+  labs(title = "New Rental Registrations Each Year",
+        x = "Year",
+        y = "Number of registrations",
+        subtitle = "Faceted by neighborhood",
+        caption = "Figure 4") +
+  facet_wrap(vars(NeighborhoodDistrict), scales = "free_x") +
+  g_theme
+```
+
+```{r}
+existing_reg_2018_n <- rental_reg %>%
+  filter(RegisteredYear %in% c(2015, 2016, 2017, 2018), 
+         !is.na(NeighborhoodDistrict)) %>%
+  group_by(NeighborhoodDistrict) %>%
+  count(NeighborhoodDistrict)
+
+existing_reg_2019_n <- rental_reg %>%
+  filter(RegisteredYear %in% c(2015, 2016, 2017, 2018, 2019), 
+         !is.na(NeighborhoodDistrict)) %>% 
+  group_by(NeighborhoodDistrict) %>%
+  count(NeighborhoodDistrict)
+
+existing_reg_2020_n <- rental_reg %>%
+  filter(RegisteredYear %in% c(2016, 2017, 2018, 2019, 2020), 
+         !is.na(NeighborhoodDistrict)) %>% 
+  group_by(NeighborhoodDistrict) %>%
+  count(NeighborhoodDistrict)
+
+existing_reg_2021_n <- rental_reg %>%
+  filter(RegisteredYear %in% c(2017, 2018, 2020, 2021), 
+         !is.na(NeighborhoodDistrict)) %>% 
+  group_by(NeighborhoodDistrict) %>%
+  count(NeighborhoodDistrict)
+
+existing_reg_2022_n <- rental_reg %>%
+  filter(RegisteredYear %in% c(2018, 2019, 2021, 2022), 
+         !is.na(NeighborhoodDistrict)) %>% 
+  group_by(NeighborhoodDistrict) %>%
+  count(NeighborhoodDistrict)
+
+existing_reg_2018_n <- existing_reg_2018_n %>%
+  mutate(year = 2018)
+
+existing_reg_2019_n <- existing_reg_2019_n %>%
+  mutate(year = 2019)
+
+existing_reg_2020_n <- existing_reg_2020_n %>%
+  mutate(year = 2020)
+
+existing_reg_2021_n <- existing_reg_2021_n %>%
+  mutate(year = 2021)
+
+existing_reg_2022_n <- existing_reg_2022_n %>%
+  mutate(year = 2022)
+
+existing_reg_n <- rbind(existing_reg_2018_n, 
+                        existing_reg_2019_n, 
+                        existing_reg_2020_n, 
+                        existing_reg_2021_n, 
+                        existing_reg_2022_n)
+```
+
+```{r, fig.width = 12, fig.height = 10}
+ggplot(existing_reg_n, aes(x = year, 
+                           y = n)) +
+  geom_col() +
+  labs(title = "Existing Rental Registrations Each Year",
+        x = "Year",
+        y = "Number of registrations",
+        subtitle = "Faceted by neighborhood", 
+        caption = "Figure 5") +
+  facet_wrap(vars(NeighborhoodDistrict), scales = "free_x") +
+  g_theme
+```
+
+We can also examine some of the numbers mentioned above with the figures below to get a more detailed understanding of how rental activity has changed during COVID.
+
+For Magnolia/Queen Anne, there hasn't been a sharp increase in new registrations since 2020 (from March to June and August to October). We can also note that while there was an increase in new registrations after the **summer of 2020**, there is an opposite effect in **2021**. This behavior could be due to the less stressful environment at the beginning of COVID and late recovery in **2020** which started in the fall of 2020, whereas there would be fewer new registrations in the **fall and winter of 2021** due to weather and the activeness of new registrations during the summer because of less impact from the pandemic and recovery from the **end of 2020**. 
+
+However, this behavior is the opposite for the Northeast neighborhood. Instead, numbers decreased starting **June 2020** and continued to decrease until the end of the year. This could be due to the public sentiment towards COVID on the economy and the strict international travel band, making it impossible for international students to be on campus and rent. Yet, in **2021**, we see an overall increase in new registrations even until the end of the year which reflects the relaxation of restrictions for attending college in-person and international travel. 
+
+```{r}
+neighborhood_reg_line <- rental_reg %>%
+  filter(RegisteredYearFct %in% c(2018, 2020, 2021, 2022),
+         NeighborhoodDistrict %in% c("Magnolia", "Northwest", "Northeast", "Lake Union")) %>%
+  group_by(NeighborhoodDistrict, RegisteredYearFct, RegisteredMonthFct) %>%
+  count(RegisteredMonthFct)
+```
+
+```{r}
+magnolia <- ggplot(neighborhood_reg_line %>% filter(NeighborhoodDistrict == "Magnolia"), aes(x = RegisteredMonthFct,
+                                  y = n,
+                                  group = RegisteredYearFct,
+                                  color = RegisteredYearFct)) +
+  geom_line() +
+  labs(title = "New Registrations Each Month (Magnolia)",
+       subtitle = "Grouped by year", 
+       x = "Month", 
+       y = "Number of rental registrations", 
+       color = "Year", 
+       caption = "Figure 5") +
+  g_theme
+
+northwest <- ggplot(neighborhood_reg_line %>% filter(NeighborhoodDistrict == "Northwest"), aes(x = RegisteredMonthFct,
+                                  y = n,
+                                  group = RegisteredYearFct,
+                                  color = RegisteredYearFct)) +
+  geom_line() +
+  labs(title = "New Registrations Each Month (Northwest)",
+       subtitle = "Grouped by year", 
+       x = "Month", 
+       y = "Number of rental registrations", 
+       color = "Year", 
+       caption = "Figure 6") +
+  g_theme
+
+lake_union <- ggplot(neighborhood_reg_line %>% filter(NeighborhoodDistrict == "Lake Union"), aes(x = RegisteredMonthFct,
+                                  y = n,
+                                  group = RegisteredYearFct,
+                                  color = RegisteredYearFct)) +
+  geom_line() +
+  labs(title = "New Registrations Each Month (Lake Union)",
+       subtitle = "Grouped by year", 
+       x = "Month", 
+       y = "Number of rental registrations", 
+       color = "Year", 
+       caption = "Figure 7") +
+  g_theme
+
+northeast <- ggplot(neighborhood_reg_line %>% filter(NeighborhoodDistrict == "Northeast"), aes(x = RegisteredMonthFct,
+                                  y = n,
+                                  group = RegisteredYearFct,
+                                  color = RegisteredYearFct)) +
+  geom_line() +
+  labs(title = "New Registrations Each Month (Northeast)",
+       subtitle = "Grouped by year", 
+       x = "Month", 
+       y = "Number of rental registrations", 
+       color = "Year", 
+       caption = "Figure 8") +
+  g_theme
+```
+
+```{r, fig.width = 15, fig.height = 10}
+ggarrange(magnolia, northwest, lake_union, northeast, ncol = 2, nrow = 2)
+```
+
+Looking at Figure 9 and Figure 10, we can also compare rental registration activity between different neighborhoods and rank neighborhoods by how trendy they are for renting:
+
+1. Northwest
+2. Lake Union
+3. Northeast
+4. East
+5. Ballard
+6. North
+7. Magnolia
+8. Central
+9. Southwest
+10. Greater Duwamish
+11. Southeast
+12. Delridge Neighborhoods
+13. Downtown
+
+```{r, fig.width = 18, fig.height = 13}
+ggplot(neighborhood_reg %>% filter(!is.na(NeighborhoodDistrict), 
+                                   RegisteredYearFct %in% c(2020, 2021, 2022)), 
+       aes(x = NeighborhoodDistrict,
+           y = n)) +
+  geom_col() +
+  labs(title = "New Rental Registrations in Each Neighborhood",
+        x = "Neighborhood",
+        y = "Number of registrations",
+        subtitle = "Faceted by year", 
+       caption = "Figure 9") +
+  facet_grid(vars(RegisteredYearFct), scales = "free_x") +
+  g_theme
+```
+
+```{r, fig.width = 18, fig.height = 13}
+ggplot(existing_reg_n %>% filter(year %in% c(2020, 2021, 2022)), aes(x = NeighborhoodDistrict,
+                             y = n)) +
+  geom_col() +
+  labs(title = "Existing Rental Registrations in Each Neighborhood",
+        x = "Neighborhood",
+        y = "Number of registrations",
+        subtitle = "Faceted by year", 
+       caption = "Figure 10") +
+  facet_grid(vars(year), scales = "free_x") +
+  g_theme
+```
+
+### Availability of Space (Housing Units) in Seattle 
+
+Besides the trend of rental registrations, the space landlords provide is also an indicator of how the rental activity is. Even though **2020** saw a great increase in new rental registrations, the number of rental units is still quite close to pre-pandemic levels. However, **2021** saw a significant increase in the number of rental units from the start of the year until the **end of summer**. Again, we can observe that the effect of vaccine roll-out and relaxation of restrictions brought back not only public activity but also rental activity. 
+
+```{r}
+total_units_monthly <- rental_reg %>%
+  filter(RegisteredYearFct %in% c(2018, 2019, 2020, 2021, 2022)) %>%
+  group_by(RegisteredYearFct, RegisteredMonthFct) %>%
+  summarize(total = sum(RentalHousingUnits), .groups = "drop")
+```
+
+```{r}
+ggplot(total_units_monthly, aes(x = RegisteredMonthFct, 
+                                y = total, 
+                                group = RegisteredYearFct, 
+                                color = RegisteredYearFct)) +
+  geom_line() + 
+  labs(title = "New Rental Units Each Month",
+       subtitle = "Grouped by year", 
+       x = "Month", 
+       y = "Number of rental units", 
+       color = "Year", 
+       caption = "Figure 10") +
+  g_theme
+```
+
+```{r}
+rental_reg <- rental_reg %>%
+  mutate(unit_type = case_when(
+    RentalHousingUnits == 1 ~ "Single Unit",
+    RentalHousingUnits >= 2 & RentalHousingUnits <= 5 ~ "2 - 5 Units",
+    RentalHousingUnits >= 6 & RentalHousingUnits <= 25 ~ "6 - 25 Units", 
+    RentalHousingUnits >= 26 & RentalHousingUnits <= 50 ~ "26 - 50 Units",
+    RentalHousingUnits >= 51 & RentalHousingUnits <= 99 ~ "51 - 99 Units",
+    RentalHousingUnits >= 100 & RentalHousingUnits <= 200 ~ "100 - 200 Units",
+    RentalHousingUnits > 200 ~ "200+ Units",
+  ))
+```
+
+From this graph below, we can see that single units are the most common unit type that is offered, while properties that offer a greater number of rental units are rarer. 
+
+Even though we have observed an uptick in new rental registrations, Figure 10 and Figure 11 could be reflective of a housing shortage because of the high demand for housing, but the city is unable to meet expectations even during the pandemic. Specifically, the rarity of a greater number of units being offered and single units as the most common offer from properties shows that there aren't many new apartment complexes being built and many properties can't offer more than a single unit because there are still many people living in those spaces. Before continuing this discussion, let's take a look at space availability across different neighborhoods. In Figure 12, there is an increase in single units being offered in all Seattle neighborhoods, with Northwest, Northeast, and Lake Union being the top contributors to the increase. 
+
+```{r}
+existing_reg_2018_unit <- rental_reg %>%
+  filter(RegisteredYear %in% c(2015, 2016, 2017, 2018), 
+         !is.na(unit_type)) %>%
+  group_by(unit_type) %>%
+  count(unit_type)
+
+existing_reg_2019_unit <- rental_reg %>%
+  filter(RegisteredYear %in% c(2015, 2016, 2017, 2018, 2019), 
+         !is.na(unit_type)) %>% 
+  group_by(unit_type) %>%
+  count(unit_type)
+
+existing_reg_2020_unit <- rental_reg %>%
+  filter(RegisteredYear %in% c(2016, 2017, 2018, 2019, 2020), 
+         !is.na(unit_type)) %>% 
+  group_by(unit_type) %>%
+  count(unit_type)
+
+existing_reg_2021_unit <- rental_reg %>%
+  filter(RegisteredYear %in% c(2017, 2018, 2020, 2021), 
+         !is.na(unit_type)) %>% 
+  group_by(unit_type) %>%
+  count(unit_type)
+
+existing_reg_2022_unit <- rental_reg %>%
+  filter(RegisteredYear %in% c(2018, 2019, 2021, 2022), 
+         !is.na(unit_type)) %>% 
+  group_by(unit_type) %>%
+  count(unit_type)
+
+existing_reg_2018_unit <- existing_reg_2018_unit %>%
+  mutate(year = 2018)
+
+existing_reg_2019_unit <- existing_reg_2019_unit %>%
+  mutate(year = 2019)
+
+existing_reg_2020_unit <- existing_reg_2020_unit %>%
+  mutate(year = 2020)
+
+existing_reg_2021_unit <- existing_reg_2021_unit %>%
+  mutate(year = 2021)
+
+existing_reg_2022_unit <- existing_reg_2022_unit %>%
+  mutate(year = 2022)
+
+existing_reg_unit <- rbind(existing_reg_2018_unit, 
+                        existing_reg_2019_unit, 
+                        existing_reg_2020_unit, 
+                        existing_reg_2021_unit, 
+                        existing_reg_2022_unit)
+```
+
+```{r, fig.width = 12, fig.height = 10}
+ggplot(existing_reg_unit %>% 
+         filter(year %in% c(2018, 2020, 2021),
+                !is.na(unit_type)), aes(x = unit_type, 
+                                        y = n)) +
+  geom_col() +
+  labs(title = "Existing Registrations for Each Rental Unit", 
+       x = "Unit category", 
+       y = "Number of registrations", 
+       subtitle = "Faceted by year", 
+       caption = "Figure 11") +
+  facet_grid(vars(year), scales = "free_x") +
+  g_theme
+```
+
+```{r}
+existing_reg_2018_unit_n <- rental_reg %>%
+  filter(RegisteredYear %in% c(2015, 2016, 2017, 2018), 
+         !is.na(unit_type)) %>%
+  group_by(NeighborhoodDistrict, unit_type) %>%
+  count(unit_type)
+
+existing_reg_2020_unit_n <- rental_reg %>%
+  filter(RegisteredYear %in% c(2016, 2017, 2018, 2019, 2020), 
+         !is.na(unit_type)) %>% 
+  group_by(NeighborhoodDistrict, unit_type) %>%
+  count(unit_type)
+
+existing_reg_2021_unit_n <- rental_reg %>%
+  filter(RegisteredYear %in% c(2017, 2018, 2020, 2021), 
+         !is.na(unit_type)) %>% 
+  group_by(NeighborhoodDistrict, unit_type) %>%
+  count(unit_type)
+
+existing_reg_2018_unit_n <- existing_reg_2018_unit_n %>%
+  mutate(year = 2018)
+
+existing_reg_2020_unit_n <- existing_reg_2020_unit_n %>%
+  mutate(year = 2020)
+
+existing_reg_2021_unit_n <- existing_reg_2021_unit_n %>%
+  mutate(year = 2021)
+
+existing_reg_2018_2020_2021 <- rbind(existing_reg_2018_unit_n, 
+                                     existing_reg_2020_unit_n, 
+                                     existing_reg_2021_unit_n)
+```
+
+```{r, fig.width = 30, fig.height = 20}
+ggplot(existing_reg_2018_2020_2021 %>% 
+         filter(unit_type %in% c("Single Unit"), 
+                !is.na(NeighborhoodDistrict)), aes(x = NeighborhoodDistrict, 
+                                                   y = n)) +
+  geom_col() +
+  labs(title = "Existing Registrations for Each Neighborhood (Single Unit)", 
+       x = "Neighborhood", 
+       y = "Number of registrations", 
+       subtitle = "Faceted by year", 
+       caption = "Figure 12") +
+  facet_grid(vars(year), scales = "free_x") +
+  theme_bw(base_size = 27) +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+        plot.subtitle = element_text(hjust = 0.5), 
+        plot.caption = element_text(hjust = 0.5))
+```
+
+## Conclusion and Remarks
+
+From this report, there are a few optimistic points but also a pressing issue about Seattle's rental market. Firstly, rental registrations continued to increase from 2018 and even throughout the pandemic overall across many Seattle neighborhoods. Though many reasons could explain the effect, a few notable ones that should be mentioned are the public sentiment towards the impact of the pandemic, the impact of travel bans, the survival instinct of individuals because of the struggling economy during the pandemic, and the recovery of the economy during the pandemic. Despite the increase that was observed, there is an alarming issue regarding the housing supply in Seattle. As the economy continues to recover and job and population growth, there will continue to be more demand for housing. Yet, as of right now, there is both a demand and shortage for housing illustrated by a great number of only single units being offered in rental properties. 
+
+Before concluding, there are some remarks to make. The dataset used only contained active registrations. This means that there must be other registrations that were canceled or are still being under review or of other statuses. However, the dataset doesn't contain any of those properties. Another remark is that some plots in this report will not contain activity in 2019. This is because there is such a small number of rental properties compared to other years that I suspect some data has gone missing. Specifically, there was no data recorded during February and April of 2020. This isn't addressed in the report to not disrupt the flow, but it might make the analysis overly optimistic.  
+
+
+
+
