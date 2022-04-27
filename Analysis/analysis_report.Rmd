@@ -12,7 +12,7 @@ library(ggplot2)
 library(kableExtra)
 library(ggpubr)
 knitr::opts_chunk$set(echo = FALSE, fig.align = "center")
-rental_reg <- read_csv("~/Desktop/PERSONAL PROJECTS/eda_seattle_rentals/Data/rental_registration_clean.csv")
+rental_reg <- read_csv("~/Desktop/PERSONAL PROJECTS/eda_seattle_rental/Data/rental_registration_clean.csv")
 ```
 
 ```{r g-theme, include = FALSE}
